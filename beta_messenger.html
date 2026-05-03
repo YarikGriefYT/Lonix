@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>LonixGram — мессенджер с каналами, группами, реакциями и стикерами</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message-bubble { animation: fadeSlideUp 0.2s ease-out; }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+        .loading-pulse { animation: pulse 1.2s infinite; }
+        .sidebar-item { transition: all 0.15s ease; cursor: pointer; border-radius: 8px; margin: 2px 8px; padding: 6px 10px; }
+        .sidebar-item:hover { background-color: #3c3f45; transform: translateX(2px); }
+        .active { background-color: #3c3f45; }
+        .discord-button { transition: all 0.2s ease; }
+        .discord-button:hover { background-color: #4752c4; transform: scale(1.02); }
+        .admin-card { transition: all 0.15s ease; cursor: pointer; background-color: #2b2d31; border-radius: 8px; padding: 8px; margin-bottom: 6px; }
+        .admin-card:hover { background-color: #3c3f45; transform: translateX(2px); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1e1f22; }
+        ::-webkit-scrollbar-thumb { background: #4e5058; border-radius: 3px; }
+        .verified-badge, .premium-badge, .scam-badge, .fake-badge, .major-badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 12px; margin-left: 6px;
+            font-size: 9px; font-weight: bold; padding: 0px 6px; height: 18px;
+        }
+        .verified-badge { background-color: #20D5EC; color: white; }
+        .verified-badge::after { content: "✓"; }
+        .premium-badge { background-color: #F5B041; color: white; }
+        .premium-badge::after { content: "⭐"; }
+        .scam-badge { background-color: #ed4245; color: white; }
+        .scam-badge::after { content: " SCAM"; }
+        .fake-badge { background-color: #ed4245; color: white; }
+        .fake-badge::after { content: " FAKE"; }
+        .major-badge { background-color: #9b59b6; color: white; }
+        .major-badge::after { content: " MAJOR"; }
+        .message-bubble-me { background-color: #5865f2; color: white; border-radius: 16px; padding: 8px 12px; max-width: 80%; }
+        .message-bubble { background-color: #2b2d31; border-radius: 16px; padding: 8px 12px; max-width: 80%; }
+        .reaction-btn, .comment-btn, .reply-btn { cursor: pointer; opacity: 0.6; transition: 0.1s; }
+        .reaction-btn:hover, .comment-btn:hover, .reply-btn:hover { opacity: 1; }
+        .emoji-picker, .sticker-picker { position: absolute; bottom: 100%; left: 0; background: #2b2d31; border-radius: 12px; padding: 8px; display: none; grid-template-columns: repeat(6, 1fr); gap: 4px; width: 200px; z-index: 20; margin-bottom: 8px; }
+        .sticker-picker { grid-template-columns: repeat(4, 1fr); width: 160px; }
+        .emoji-item, .sticker-item { cursor: pointer; font-size: 20px; text-align: center; padding: 4px; border-radius: 8px; transition: 0.1s; }
+        .emoji-item:hover, .sticker-item:hover { background: #3c3f45; }
+        .reaction-list { display: inline-flex; gap: 6px; margin-left: 8px; font-size: 12px; align-items: center; }
+        .reaction-badge { background: #1e1f22; border-radius: 12px; padding: 2px 6px; display: inline-flex; align-items: center; gap: 4px; }
+        .message-footer { display: flex; align-items: center; gap: 12px; margin-top: 4px; font-size: 11px; color: #949ba4; }
+    </style>
+</head>
+<body class="bg-[#313338] text-[#dbdee1] font-sans">
+
+<!-- ЭКРАН ВХОДА / РЕГИСТРАЦИЯ -->
+<div id="auth-screen" class="fixed inset-0 flex items-center justify-center bg-[#313338] z-50">
+    <div class="w-full max-w-md bg-[#2b2d31] rounded-2xl shadow-xl p-8 transition-all duration-300 relative">
+        <button id="auth-back-btn" class="absolute top-4 left-4 text-gray-400 hover:text-white transition hidden">← Назад</button>
+        <div class="text-center mb-6">
+            <div class="w-16 h-16 bg-[#5865f2] rounded-2xl flex items-center justify-center mx-auto"><span class="text-white font-bold text-3xl">LG</span></div>
+            <h1 class="text-2xl font-bold mt-4">LonixGram</h1>
+            <p class="text-gray-400 text-sm">Вход / Регистрация</p>
+        </div>
+        <div id="auth-form-container">
+            <form id="login-form" class="space-y-4">
+                <input type="text" id="login-phone" placeholder="Логин / Телефон" class="w-full bg-[#1e1f22] rounded-xl py-2 px-4 outline-none focus:ring-1 focus:ring-[#5865f2]">
+                <input type="password" id="login-password" placeholder="Пароль" class="w-full bg-[#1e1f22] rounded-xl py-2 px-4 outline-none focus:ring-1 focus:ring-[#5865f2]">
+                <button type="submit" class="discord-button w-full bg-[#5865f2] py-2 rounded-xl font-semibold">Войти</button>
+            </form>
+            <div class="text-center mt-4 text-sm">
+                <span class="text-gray-400">Нет аккаунта?</span>
+                <button id="show-register-btn" class="text-[#5865f2] ml-2">Зарегистрироваться</button>
+            </div>
+        </div>
+        <div id="register-form-container" class="hidden space-y-4">
+            <input type="text" id="reg-phone" placeholder="Номер телефона" class="w-full bg-[#1e1f22] rounded-xl py-2 px-4">
+            <input type="email" id="reg-email" placeholder="Email (для 2FA)" class="w-full bg-[#1e1f22] rounded-xl py-2 px-4">
+            <input type="password" id="reg-password" placeholder="Пароль" class="w-full bg-[#1e1f22] rounded-xl py-2 px-4">
+            <input type="password" id="reg-password2" placeholder="Повторите пароль" class="w-full bg-[#1e1f22] rounded-xl py-2 px-4">
+            <button id="do-register-btn" class="w-full bg-[#5865f2] py-2 rounded-xl font-semibold">Зарегистрироваться</button>
+            <button id="back-to-login-from-reg" class="w-full text-gray-400 text-sm">← Назад к входу</button>
+        </div>
+        <div id="2fa-container" class="hidden space-y-4">
+            <p class="text-center text-sm">Код подтверждения отправлен на email</p>
+            <input type="text" id="2fa-code" placeholder="Код из письма" class="w-full bg-[#1e1f22] rounded-xl py-2 px-4">
+            <button id="verify-2fa-btn" class="w-full bg-[#5865f2] py-2 rounded-xl font-semibold">Подтвердить</button>
+        </div>
+        <p id="auth-error" class="text-red-500 text-xs text-center mt-2 hidden"></p>
+    </div>
+</div>
+
+<!-- ОСНОВНОЙ ИНТЕРФЕЙС -->
+<div id="main-app" class="hidden h-screen flex overflow-hidden">
+    <aside class="w-72 bg-[#1e1f22] flex flex-col">
+        <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+            <h1 class="text-xl font-bold">LonixGram</h1>
+            <button id="settings-btn" class="p-1 rounded-md hover:bg-gray-800 transition"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+        </div>
+        <div class="p-3"><input type="text" id="search-chats" placeholder="Поиск" class="w-full bg-[#1e1f22] rounded-xl py-2 px-4 outline-none"></div>
+        <div class="px-2 mt-2"><div class="flex justify-between items-center px-2 mb-1"><div class="text-xs font-semibold text-gray-400">Каналы</div><button id="create-channel-btn" class="text-xs bg-[#5865f2] px-2 py-1 rounded-lg hover:bg-[#4752c4] transition">+ Создать</button></div><div id="channels-list" class="space-y-0.5"></div></div>
+        <div class="px-2 mt-2"><div class="flex justify-between items-center px-2 mb-1"><div class="text-xs font-semibold text-gray-400">Группы</div><button id="create-group-btn" class="text-xs bg-[#5865f2] px-2 py-1 rounded-lg hover:bg-[#4752c4] transition">+ Создать группу</button></div><div id="groups-list" class="space-y-0.5"></div></div>
+        <div class="px-2 mt-2"><div class="text-xs font-semibold text-gray-400 px-2 mb-1">Боты</div><div id="bots-list" class="space-y-0.5"></div></div>
+        <div class="px-2 mt-2"><div class="text-xs font-semibold text-gray-400 px-2 mb-1">Личные сообщения</div><div id="chat-list" class="space-y-0.5"></div></div>
+        <div class="p-3 mt-auto border-t border-gray-800"><div class="flex items-center gap-2"><img id="current-user-avatar" class="w-8 h-8 rounded-full"><div><div id="current-user-name" class="text-sm font-semibold"></div><div id="current-user-status" class="text-xs text-gray-400"></div></div></div></div>
+    </aside>
+
+    <div class="flex-1 flex flex-col">
+        <div class="bg-[#1e1f22] p-3 border-b flex justify-between items-center">
+            <div class="flex items-center gap-3"><img id="chat-avatar" class="w-10 h-10 rounded-full"><div><span id="chat-name" class="font-semibold"></span><span id="chat-status" class="text-xs text-gray-400 ml-2"></span></div></div>
+            <button id="report-btn" class="bg-red-500/20 hover:bg-red-500/40 text-red-400 px-3 py-1 rounded-lg text-sm transition">🚩 Жалоба</button>
+        </div>
+        <div id="messages-area" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+        <div id="input-area" class="p-3 bg-[#1e1f22] border-t">
+            <div id="frozen-notice" class="bg-[#2b2d31] rounded-xl p-2 text-center text-yellow-400 text-sm mb-2 hidden">❄️ Аккаунт заморожен. Доступен только @spambot</div>
+            <div class="flex gap-2 items-center">
+                <button id="emoji-btn" class="p-2 rounded-lg hover:bg-gray-800">😀</button>
+                <button id="sticker-btn" class="p-2 rounded-lg hover:bg-gray-800">📦</button>
+                <form id="message-form" class="flex-1 flex gap-2">
+                    <input type="text" id="message-input" placeholder="Сообщение..." class="flex-1 bg-[#2b2d31] rounded-xl px-4 py-2 outline-none">
+                    <button type="submit" class="discord-button bg-[#5865f2] text-white px-4 py-2 rounded-xl">Отправить</button>
+                </form>
+            </div>
+            <div id="emoji-picker" class="emoji-picker"></div>
+            <div id="sticker-picker" class="sticker-picker"></div>
+        </div>
+    </div>
+
+    <div id="settings-panel" class="hidden fixed inset-0 md:relative md:flex md:w-96 bg-[#1e1f22] flex-col z-20 overflow-y-auto">
+        <div class="p-4 border-b flex justify-between"><h2 class="text-xl font-semibold">Настройки</h2><button id="close-settings" class="md:hidden text-2xl">&times;</button></div>
+        <div class="p-6 space-y-6">
+            <div class="text-center"><img id="profile-avatar" class="w-28 h-28 rounded-full mx-auto mb-3 border-4 border-[#5865f2]"><button id="change-avatar-btn" class="text-sm text-[#00a8fc]">Сменить аватар</button><input type="file" id="avatar-input" class="hidden" accept="image/*"></div>
+            <div><label class="block text-sm font-medium mb-1">Имя</label><input type="text" id="profile-name" class="w-full bg-[#2b2d31] rounded-xl p-2"></div>
+            <div><label class="block text-sm font-medium mb-1">Юзернейм</label><div class="flex"><span class="bg-[#2b2d31] rounded-l-xl px-3 py-2">@</span><input type="text" id="profile-username" class="flex-1 bg-[#2b2d31] rounded-r-xl p-2"></div></div>
+            <div><label class="block text-sm font-medium mb-1">О себе</label><textarea id="profile-bio" rows="3" class="w-full bg-[#2b2d31] rounded-xl p-2"></textarea></div>
+            <button id="save-profile-btn" class="w-full bg-[#5865f2] text-white py-2 rounded-xl transition hover:bg-[#4752c4]">Сохранить</button>
+            <button id="logout-user-btn" class="w-full bg-red-500/20 text-red-400 py-2 rounded-xl transition hover:bg-red-500/30">Выйти</button>
+        </div>
+    </div>
+</div>
+
+<!-- АДМИН-ПАНЕЛЬ -->
+<div id="admin-panel" class="hidden h-screen flex overflow-hidden bg-[#1e1f22]">
+    <div class="w-80 bg-[#2b2d31] border-r border-gray-800 flex flex-col">
+        <div class="p-4 bg-[#5865f2]/10"><h2 class="text-xl font-bold">⚡ Админ-панель</h2></div>
+        <div class="flex border-b"><button id="admin-tab-users" class="flex-1 p-2 text-sm hover:bg-gray-800">Пользователи</button><button id="admin-tab-channels" class="flex-1 p-2 text-sm hover:bg-gray-800">Каналы</button><button id="admin-tab-groups" class="flex-1 p-2 text-sm hover:bg-gray-800">Группы</button><button id="admin-tab-reports" class="flex-1 p-2 text-sm hover:bg-gray-800">Репорты</button></div>
+        <div id="admin-search-container" class="p-2"><input type="text" id="admin-search" placeholder="Поиск..." class="w-full bg-[#1e1f22] rounded-xl py-2 px-3"></div>
+        <div id="admin-users-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+        <div id="admin-channels-list" class="flex-1 overflow-y-auto p-2 space-y-1 hidden"></div>
+        <div id="admin-groups-list" class="flex-1 overflow-y-auto p-2 space-y-1 hidden"></div>
+        <div id="admin-reports-list" class="flex-1 overflow-y-auto p-2 space-y-1 hidden"></div>
+        <div class="p-4 border-t"><button id="admin-logout" class="w-full bg-red-500 text-white py-2 rounded-xl">Выйти</button></div>
+    </div>
+    <div class="flex-1 flex flex-col"><div class="p-4 bg-[#2b2d31] border-b"><h3 id="admin-chat-name" class="font-bold">Выберите элемент</h3><span id="admin-chat-status" class="text-xs"></span></div><div id="admin-messages" class="flex-1 overflow-y-auto p-4 text-gray-400">Выберите пользователя</div></div>
+</div>
+
+<script>
+    // ---------- ДАННЫЕ ----------
+    let allUsers = {};
+    let channels = [];    // каналы (публичные)
+    let groups = [];      // группы (чаты с участниками)
+    let bots = [];
+    let messagesDB = {};  // ключ: "имя_сущности" (для групп, каналов) или chat_ид1_ид2
+    let reports = [];
+    let currentUserId = null;
+    let currentChatId = null;   // может быть id канала, группы или id пользователя (личка)
+    let currentChatType = null; // 'channel', 'group', 'dm'
+    let pending2FA = null;
+
+    function initDemoData() {
+        // Пользователи
+        allUsers['admin'] = { id:'admin', name:'Администратор', username:'admin', email:'admin@lonix.com', password:'admin123', verified:true, premium:true, banned:false, frozen:false, tags:[], isAdmin:true, isMajor:true, colorName:false, lastSeen:Date.now(), phone:'admin' };
+        allUsers['alex'] = { id:'alex', name:'Алексей', username:'alex', email:'alex@mail.com', password:'123', verified:true, premium:true, banned:false, frozen:false, tags:[], isAdmin:false, isMajor:false, colorName:false, lastSeen:Date.now(), phone:'+71111111111' };
+        allUsers['alisa'] = { id:'alisa', name:'Алиса', username:'alisa', email:'alisa@mail.com', password:'123', verified:true, premium:false, banned:false, frozen:false, tags:[], isAdmin:false, isMajor:false, colorName:false, lastSeen:Date.now()-3600000, phone:'+72222222222' };
+        allUsers['marko'] = { id:'marko', name:'Марко', username:'marko', email:'marko@mail.com', password:'123', verified:false, premium:false, banned:false, frozen:false, tags:[], isAdmin:false, isMajor:false, colorName:false, lastSeen:Date.now()-7200000, phone:'+73333333333' };
+        // Каналы
+        channels.push({ id:'ch1', name:'📢 Новости', description:'Официальный канал', owner:'admin', members:[], messages:[], views:0, reactions:{}, comments:[] });
+        // Группы
+        groups.push({ id:'gr1', name:'🍻 Друзья', description:'Общаемся', owner:'alex', members:['alex','alisa','marko'], messages:[], reactions:{}, comments:[] });
+        // Бот разморозки
+        bots.push({ id:'spambot', name:'SpamBot', username:'spambot', verified:true });
+        // Личные сообщения (демо)
+        const pairs = [['alex','alisa'],['alex','marko'],['alisa','marko']];
+        pairs.forEach(([a,b]) => { let key=`dm_${a}_${b}`; if(!messagesDB[key]) messagesDB[key]=[]; });
+        // Сообщения в канале
+        messagesDB['ch1'] = [{ id:'msg1', from:'admin', text:'Добро пожаловать!', time:'12:00', views:5, reactions:{'👍':['admin','alex']}, comments:[] }];
+        messagesDB['gr1'] = [{ id:'msg2', from:'alex', text:'Всем привет!', time:'12:30', views:3, reactions:{'❤️':['alisa']}, comments:[] }];
+    }
+    initDemoData();
+
+    // Вспомогательные функции
+    function getMessageList(chatId, type) {
+        let key = (type==='dm') ? `dm_${chatId}` : chatId;
+        if(!messagesDB[key]) messagesDB[key] = [];
+        return messagesDB[key];
+    }
+    function addMessage(chatId, type, fromId, text, isSticker=false) {
+        let key = (type==='dm') ? `dm_${chatId}` : chatId;
+        if(!messagesDB[key]) messagesDB[key] = [];
+        let newMsg = { id:'msg_'+Date.now()+Math.random(), from:fromId, text, time:new Date().toLocaleTimeString(), views:0, reactions:{}, comments:[] };
+        if(isSticker) newMsg.isSticker = true;
+        messagesDB[key].push(newMsg);
+        return newMsg;
+    }
+    function incrementViews(chatId, type, msgIndex) { let key=(type==='dm')?`dm_${chatId}`:chatId; if(messagesDB[key][msgIndex]) messagesDB[key][msgIndex].views++; renderCurrentChat(); }
+    function addReaction(chatId, type, msgIndex, emoji, userId) { let key=(type==='dm')?`dm_${chatId}`:chatId; let msg=messagesDB[key][msgIndex]; if(msg){ if(!msg.reactions[emoji]) msg.reactions[emoji]=[]; if(!msg.reactions[emoji].includes(userId)) msg.reactions[emoji].push(userId); renderCurrentChat(); } }
+    function addComment(chatId, type, msgIndex, commentText, userId) { let key=(type==='dm')?`dm_${chatId}`:chatId; let msg=messagesDB[key][msgIndex]; if(msg){ if(!msg.comments) msg.comments=[]; msg.comments.push({ from:userId, text:commentText, time:new Date().toLocaleTimeString() }); renderCurrentChat(); } }
+
+    function renderSidebar() {
+        let isFrozen = allUsers[currentUserId]?.frozen || false;
+        let chDiv=document.getElementById('channels-list'); chDiv.innerHTML='';
+        channels.forEach(ch=>{ let div=document.createElement('div'); div.className=`sidebar-item ${currentChatId===ch.id && currentChatType==='channel'?'active':''} px-2 py-1 rounded-lg`; div.innerHTML=`<span>${ch.name}</span>`; if(!isFrozen) div.onclick=()=>openChannel(ch.id); else div.style.opacity='0.5'; chDiv.appendChild(div); });
+        let grDiv=document.getElementById('groups-list'); grDiv.innerHTML='';
+        groups.forEach(gr=>{ let div=document.createElement('div'); div.className=`sidebar-item ${currentChatId===gr.id && currentChatType==='group'?'active':''} px-2 py-1 rounded-lg`; div.innerHTML=`<span>${gr.name}</span>`; if(!isFrozen) div.onclick=()=>openGroup(gr.id); else div.style.opacity='0.5'; grDiv.appendChild(div); });
+        let botsDiv=document.getElementById('bots-list'); botsDiv.innerHTML='';
+        bots.forEach(bot=>{ let div=document.createElement('div'); div.className=`sidebar-item ${currentChatId===bot.id && currentChatType==='bot'?'active':''} px-2 py-1 rounded-lg`; div.innerHTML=`<span>🤖 ${bot.name}</span>`; if(!isFrozen || bot.id==='spambot') div.onclick=()=>openBot(bot.id); else div.style.opacity='0.5'; botsDiv.appendChild(div); });
+        let usersList=Object.values(allUsers).filter(u=>u.id!==currentUserId && !u.banned);
+        let dmDiv=document.getElementById('chat-list'); dmDiv.innerHTML='';
+        usersList.forEach(user=>{ let div=document.createElement('div'); div.className=`sidebar-item ${currentChatId===user.id && currentChatType==='dm'?'active':''} px-2 py-1 rounded-lg`; div.innerHTML=`<div class="flex justify-between"><span>${user.name}</span><span class="text-xs text-gray-400">@${user.username}</span></div>`; if(!isFrozen) div.onclick=()=>openDM(user.id); else div.style.opacity='0.5'; dmDiv.appendChild(div); });
+        let cu=allUsers[currentUserId]; if(cu){ document.getElementById('current-user-name').innerHTML=cu.name; document.getElementById('current-user-avatar').src=cu.avatar?cu.avatar:`https://ui-avatars.com/api/?name=${cu.name}&background=random&format=svg`; document.getElementById('current-user-status').innerHTML=cu.frozen?'❄️ Заморожен':'активен'; }
+    }
+
+    function openChannel(id) { currentChatId=id; currentChatType='channel'; renderCurrentChat(); renderSidebar(); }
+    function openGroup(id) { currentChatId=id; currentChatType='group'; renderCurrentChat(); renderSidebar(); }
+    function openBot(id) { currentChatId=id; currentChatType='bot'; renderCurrentChat(); renderSidebar(); }
+    function openDM(id) { currentChatId=id; currentChatType='dm'; renderCurrentChat(); renderSidebar(); }
+
+    function renderCurrentChat() {
+        let chatName='', avatar='', status='';
+        let messages=[];
+        if(currentChatType==='channel'){ let ch=channels.find(c=>c.id===currentChatId); if(ch){ chatName=ch.name; avatar='https://cdn-icons-png.flaticon.com/512/5272/5272741.png'; status=ch.description; messages=getMessageList(currentChatId,'channel'); } }
+        else if(currentChatType==='group'){ let gr=groups.find(g=>g.id===currentChatId); if(gr){ chatName=gr.name; avatar='https://cdn-icons-png.flaticon.com/512/5272/5272741.png'; status=`${gr.members.length} участников`; messages=getMessageList(currentChatId,'group'); } }
+        else if(currentChatType==='bot'){ let bot=bots.find(b=>b.id===currentChatId); chatName=bot.name; avatar='https://cdn-icons-png.flaticon.com/512/4712/4712109.png'; status='бот'; messages=getMessageList(`bot_${currentChatId}`,'bot'); }
+        else if(currentChatType==='dm'){ let partner=allUsers[currentChatId]; if(partner){ chatName=partner.name; avatar=partner.avatar?partner.avatar:`https://ui-avatars.com/api/?name=${partner.name}&background=random&format=svg`; status=partner.frozen?'❄️ Заморожен':'активен'; messages=getMessageList(`dm_${currentUserId}_${currentChatId}`,'dm'); } }
+        document.getElementById('chat-name').innerHTML=chatName; document.getElementById('chat-avatar').src=avatar; document.getElementById('chat-status').innerHTML=status;
+        renderMessages(messages);
+    }
+
+    function renderMessages(messages) {
+        let container=document.getElementById('messages-area'); container.innerHTML='';
+        messages.forEach((msg,idx)=>{
+            let isMe=(msg.from===currentUserId);
+            let sender=allUsers[msg.from]?.name || msg.from;
+            let bubbleClass=isMe?'message-bubble-me':'message-bubble';
+            let content=msg.isSticker?`<div style="font-size:48px;">${msg.text}</div>`:(msg.text.includes('http')?msg.text.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank" class="text-blue-400 underline">$1</a>'):msg.text);
+            let reactionsHtml=''; for(let [emoji,users] of Object.entries(msg.reactions||{})) reactionsHtml+=`<span class="reaction-badge">${emoji} ${users.length}</span>`;
+            let commentsHtml=''; if(msg.comments?.length) commentsHtml=`<span class="reaction-badge" onclick="showComments('${msg.id}')">💬 ${msg.comments.length}</span>`;
+            container.innerHTML+=`
+                <div class="message-wrapper" data-msg-idx="${idx}">
+                    <div class="flex ${isMe?'justify-end':'justify-start'}">
+                        <div class="${bubbleClass}">
+                            ${!isMe?`<div class="text-xs font-semibold text-[#00a8fc]">${sender}</div>`:''}
+                            <div>${content}</div>
+                            <div class="message-footer">
+                                <span>${msg.time}</span>
+                                <span>👁️ ${msg.views||0}</span>
+                                <div class="reaction-list">${reactionsHtml}</div>
+                                ${commentsHtml}
+                                <button class="reaction-btn" data-emoji="👍">👍</button>
+                                <button class="reaction-btn" data-emoji="❤️">❤️</button>
+                                <button class="reaction-btn" data-emoji="😂">😂</button>
+                                <button class="comment-btn">💬</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        });
+        document.querySelectorAll('.reaction-btn').forEach(btn=>{ btn.onclick=(e)=>{ let emoji=btn.dataset.emoji; let msgDiv=btn.closest('.message-wrapper'); let idx=msgDiv.dataset.msgIdx; addReaction(currentChatId,currentChatType,idx,emoji,currentUserId); }; });
+        document.querySelectorAll('.comment-btn').forEach(btn=>{ btn.onclick=(e)=>{ let msgDiv=btn.closest('.message-wrapper'); let idx=msgDiv.dataset.msgIdx; let comment=prompt('Ваш комментарий:'); if(comment) addComment(currentChatId,currentChatType,idx,comment,currentUserId); }; });
+        container.scrollTop=container.scrollHeight;
+    }
+
+    function sendMessage(text){
+        if(allUsers[currentUserId]?.frozen && currentChatType!=='bot'){ alert('Вы заморожены'); return; }
+        if(currentChatType==='dm') addMessage(`dm_${currentUserId}_${currentChatId}`,'dm',currentUserId,text);
+        else if(currentChatType==='channel') addMessage(currentChatId,'channel',currentUserId,text);
+        else if(currentChatType==='group') addMessage(currentChatId,'group',currentUserId,text);
+        else if(currentChatType==='bot' && currentChatId==='spambot'){
+            addMessage(`bot_spambot`,'bot',currentUserId,text);
+            setTimeout(()=>{ let reply=text.trim()==='/unfreeze'?'✅ Аккаунт разморожен!':`🤖 Бот ответил: ${text}`; addMessage(`bot_spambot`,'bot','spambot',reply); renderCurrentChat(); },500);
+        }
+        renderCurrentChat();
+    }
+
+    // Регистрация и авторизация
+    function registerUser(phone,email,pass){
+        if(Object.values(allUsers).find(u=>u.phone===phone||u.email===email)) return {error:'Уже существует'};
+        let id='user_'+Date.now(), name='User'+Math.floor(Math.random()*10000);
+        allUsers[id]={ id, name, username:'user'+Math.floor(Math.random()*10000), email, password:pass, phone, verified:false, premium:false, banned:false, frozen:false, tags:[], isAdmin:false, isMajor:false, colorName:false, lastSeen:Date.now() };
+        return {success:true, user:allUsers[id]};
+    }
+    function start2FA(userId,email){ let code=Math.floor(100000+Math.random()*900000).toString(); pending2FA={userId,code}; alert(`Код для ${email}: ${code}`); document.getElementById('auth-form-container').classList.add('hidden'); document.getElementById('register-form-container').classList.add('hidden'); document.getElementById('2fa-container').classList.remove('hidden'); document.getElementById('auth-back-btn').classList.remove('hidden'); }
+    function verify2FA(code){ if(pending2FA && code===pending2FA.code){ let uid=pending2FA.userId; pending2FA=null; if(uid==='admin'){ document.getElementById('auth-screen').classList.add('hidden'); document.getElementById('admin-panel').classList.remove('hidden'); renderAdminUsersList(); } else { currentUserId=uid; document.getElementById('auth-screen').classList.add('hidden'); document.getElementById('main-app').classList.remove('hidden'); renderSidebar(); if(channels.length) openChannel(channels[0].id); loadProfile(); } return true; } else { document.getElementById('auth-error').innerText='Неверный код'; return false; } }
+    function handleLogin(phone,pass){ let user=Object.values(allUsers).find(u=>u.phone===phone||u.username===phone); if(!user){ document.getElementById('auth-error').innerText='Неверный логин'; return; } if(user.password!==pass){ document.getElementById('auth-error').innerText='Неверный пароль'; return; } start2FA(user.id,user.email); }
+    function loadProfile(){ let u=allUsers[currentUserId]; document.getElementById('profile-name').value=u.name; document.getElementById('profile-username').value=u.username; document.getElementById('profile-bio').value=u.bio||''; document.getElementById('profile-avatar').src=u.avatar?u.avatar:`https://ui-avatars.com/api/?name=${u.name}&background=random&format=svg`; }
+    function saveProfile(){ let u=allUsers[currentUserId]; u.name=document.getElementById('profile-name').value.trim()||u.name; u.username=document.getElementById('profile-username').value.trim().replace(/\s/g,'')||u.username; u.bio=document.getElementById('profile-bio').value; renderSidebar(); alert('Сохранено'); }
+
+    // Админ-панель (упрощённо)
+    function renderAdminUsersList(){ let cont=document.getElementById('admin-users-list'); cont.innerHTML=''; Object.values(allUsers).forEach(u=>{ if(u.id==='admin') return; let div=document.createElement('div'); div.className='admin-card'; div.innerText=`${u.name} (${u.username})`; div.onclick=()=>{ document.getElementById('admin-chat-name').innerText=u.name; document.getElementById('admin-chat-status').innerText=`Бан:${u.banned?'да':'нет'} Заморозка:${u.frozen?'да':'нет'}`; }; cont.appendChild(div); }); }
+    function renderAdminChannelsList(){ let cont=document.getElementById('admin-channels-list'); cont.innerHTML=''; channels.forEach(ch=>{ let div=document.createElement('div'); div.className='admin-card'; div.innerText=ch.name; div.onclick=()=>{ document.getElementById('admin-chat-name').innerText=ch.name; }; cont.appendChild(div); }); }
+    function renderAdminGroupsList(){ let cont=document.getElementById('admin-groups-list'); cont.innerHTML=''; groups.forEach(gr=>{ let div=document.createElement('div'); div.className='admin-card'; div.innerText=gr.name; div.onclick=()=>{ document.getElementById('admin-chat-name').innerText=gr.name; }; cont.appendChild(div); }); }
+    function renderAdminReportsList(){ let cont=document.getElementById('admin-reports-list'); cont.innerHTML=''; if(reports.length===0){ cont.innerHTML='<div class="text-gray-400 p-2">Нет жалоб</div>'; return; } reports.forEach(r=>{ let div=document.createElement('div'); div.className='admin-card'; div.innerText=`${r.targetName} - ${r.reason}`; cont.appendChild(div); }); }
+
+    // Обработчики UI
+    document.getElementById('login-form').addEventListener('submit',(e)=>{ e.preventDefault(); handleLogin(document.getElementById('login-phone').value, document.getElementById('login-password').value); });
+    document.getElementById('show-register-btn').onclick=()=>{ document.getElementById('auth-form-container').classList.add('hidden'); document.getElementById('register-form-container').classList.remove('hidden'); document.getElementById('auth-back-btn').classList.add('hidden'); };
+    document.getElementById('back-to-login-from-reg').onclick=()=>{ document.getElementById('register-form-container').classList.add('hidden'); document.getElementById('auth-form-container').classList.remove('hidden'); };
+    document.getElementById('do-register-btn').onclick=()=>{ let p1=document.getElementById('reg-password').value, p2=document.getElementById('reg-password2').value; if(p1!==p2){ document.getElementById('auth-error').innerText='Пароли не совпадают'; return; } let res=registerUser(document.getElementById('reg-phone').value, document.getElementById('reg-email').value, p1); if(res.error){ document.getElementById('auth-error').innerText=res.error; return; } start2FA(res.user.id, res.user.email); };
+    document.getElementById('verify-2fa-btn').onclick=()=>{ verify2FA(document.getElementById('2fa-code').value); };
+    document.getElementById('auth-back-btn').onclick=()=>{ document.getElementById('2fa-container').classList.add('hidden'); document.getElementById('auth-form-container').classList.remove('hidden'); pending2FA=null; };
+    document.getElementById('message-form').addEventListener('submit',(e)=>{ e.preventDefault(); let inp=document.getElementById('message-input'); if(inp.value.trim()) sendMessage(inp.value.trim()); inp.value=''; });
+    document.getElementById('settings-btn').onclick=()=>document.getElementById('settings-panel').classList.remove('hidden');
+    document.getElementById('close-settings').onclick=()=>document.getElementById('settings-panel').classList.add('hidden');
+    document.getElementById('save-profile-btn').onclick=saveProfile;
+    document.getElementById('logout-user-btn').onclick=()=>{ document.getElementById('main-app').classList.add('hidden'); document.getElementById('auth-screen').classList.remove('hidden'); currentUserId=null; };
+    document.getElementById('change-avatar-btn').onclick=()=>document.getElementById('avatar-input').click();
+    document.getElementById('avatar-input').onchange=(e)=>{ let file=e.target.files[0]; if(file){ let reader=new FileReader(); reader.onload=(ev)=>{ allUsers[currentUserId].avatar=ev.target.result; document.getElementById('profile-avatar').src=ev.target.result; renderSidebar(); }; reader.readAsDataURL(file); } };
+    document.getElementById('search-chats').addEventListener('input',()=>renderSidebar());
+    document.getElementById('create-channel-btn').onclick=()=>{ let name=prompt('Название канала'); if(name) channels.push({ id:'ch_'+Date.now(), name, description:'', owner:currentUserId, members:[], messages:[], views:0, reactions:{}, comments:[] }); renderSidebar(); };
+    document.getElementById('create-group-btn').onclick=()=>{ let name=prompt('Название группы'); if(name) groups.push({ id:'gr_'+Date.now(), name, description:'', owner:currentUserId, members:[currentUserId], messages:[], reactions:{}, comments:[] }); renderSidebar(); };
+    document.getElementById('report-btn').onclick=()=>{ let reason=prompt('Причина жалобы'); if(reason) reports.push({ id:Date.now(), targetName:document.getElementById('chat-name').innerText, reason }); alert('Жалоба отправлена'); };
+    // Эмодзи-пикер и стикеры
+    let emojis=['😀','😂','❤️','👍','😢','🙏','🔥','🎉','🤔','👀','👋','💀']; let stickers=['😎','🥳','💪','🎈','⭐','❤️'];
+    let emojiPicker=document.getElementById('emoji-picker'); let stickerPicker=document.getElementById('sticker-picker');
+    emojis.forEach(e=>{ let span=document.createElement('span'); span.className='emoji-item'; span.innerText=e; span.onclick=()=>{ document.getElementById('message-input').value+=e; emojiPicker.style.display='none'; }; emojiPicker.appendChild(span); });
+    stickers.forEach(s=>{ let span=document.createElement('span'); span.className='sticker-item'; span.innerText=s; span.onclick=()=>{ sendMessage(s); stickerPicker.style.display='none'; }; stickerPicker.appendChild(span); });
+    document.getElementById('emoji-btn').onclick=()=>{ emojiPicker.style.display=emojiPicker.style.display==='grid'?'none':'grid'; stickerPicker.style.display='none'; };
+    document.getElementById('sticker-btn').onclick=()=>{ stickerPicker.style.display=stickerPicker.style.display==='grid'?'none':'grid'; emojiPicker.style.display='none'; };
+    document.addEventListener('click',(e)=>{ if(!e.target.closest('#emoji-btn') && !emojiPicker.contains(e.target)) emojiPicker.style.display='none'; if(!e.target.closest('#sticker-btn') && !stickerPicker.contains(e.target)) stickerPicker.style.display='none'; });
+    // Админ вкладки
+    document.getElementById('admin-tab-users').onclick=()=>{ toggleAdminTab('users'); renderAdminUsersList(); };
+    document.getElementById('admin-tab-channels').onclick=()=>{ toggleAdminTab('channels'); renderAdminChannelsList(); };
+    document.getElementById('admin-tab-groups').onclick=()=>{ toggleAdminTab('groups'); renderAdminGroupsList(); };
+    document.getElementById('admin-tab-reports').onclick=()=>{ toggleAdminTab('reports'); renderAdminReportsList(); };
+    function toggleAdminTab(tab){ document.getElementById('admin-users-list').classList.toggle('hidden',tab!=='users'); document.getElementById('admin-channels-list').classList.toggle('hidden',tab!=='channels'); document.getElementById('admin-groups-list').classList.toggle('hidden',tab!=='groups'); document.getElementById('admin-reports-list').classList.toggle('hidden',tab!=='reports'); }
+    document.getElementById('admin-logout').onclick=()=>{ document.getElementById('admin-panel').classList.add('hidden'); document.getElementById('auth-screen').classList.remove('hidden'); };
+</script>
+</body>
+</html>
